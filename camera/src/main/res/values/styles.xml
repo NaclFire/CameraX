@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="FullScreen" parent="Theme.AppCompat.Light.NoActionBar" >
+        <item name="android:windowTranslucentStatus">true</item>
+        <item name="android:windowTranslucentNavigation">false</item>
+        <item name="android:statusBarColor">@color/color_transparent</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">false</item>
+    </style>
+
+    <style name="PopupAnimStyle">
+        <item name="android:windowEnterAnimation">@anim/anim_popup_show</item>
+        <item name="android:windowExitAnimation">@anim/anim_popup_dismiss</item>
+    </style>
+</resources>

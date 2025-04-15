@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/black"
+    android:orientation="vertical">
+    <!--拍照完成确定视图-->
+    <RelativeLayout
+        android:id="@+id/ll_confirm_layout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/iv_take_photo_preview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#222"
+            android:scaleType="fitStart" />
+
+        <LinearLayout
+            android:id="@+id/ll_confirm_button_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_alignParentBottom="true"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:padding="20dp">
+
+            <TextView
+                android:id="@+id/tv_cancel"
+                android:layout_width="90dp"
+                android:layout_height="40dp"
+                android:background="@drawable/button_unclickable"
+                android:gravity="center"
+                android:text="取消"
+                android:textColor="@color/black"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/tv_ok"
+                android:layout_width="90dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="80dp"
+                android:background="@drawable/button_clickable"
+                android:gravity="center"
+                android:text="确定"
+                android:textColor="@color/white"
+                android:textSize="16sp" />
+        </LinearLayout>
+    </RelativeLayout>
+
+    <RelativeLayout
+        android:id="@+id/ll_photo_layout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <androidx.camera.view.PreviewView
+            android:id="@+id/previewView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+        <!--底部拍照按钮-->
+        <RelativeLayout
+            android:id="@+id/rl_bottom_take_button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_alignParentBottom="true"
+            android:padding="20dp">
+
+            <ImageView
+                android:id="@+id/iv_camera_flash_button"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_alignParentStart="true"
+                android:layout_centerVertical="true"
+                android:layout_marginStart="20dp"
+                android:padding="5dp"
+                android:src="@drawable/ic_camera_flash_off"
+                android:tint="@color/white" />
+
+            <com.fire.camera.widget.CircleProgressButtonView
+                android:id="@+id/bt_record"
+                android:layout_width="90dp"
+                android:layout_height="90dp"
+                android:layout_centerHorizontal="true"
+                android:layout_centerVertical="true"
+                android:layout_gravity="bottom|center"
+                app:maxTime="15"
+                app:progressWidth="4dp" />
+
+            <ImageView
+                android:id="@+id/iv_camera_function_button"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:layout_marginEnd="20dp"
+                android:padding="5dp"
+                android:src="@drawable/ic_camera_switch_camera"
+                android:tint="@color/white" />
+        </RelativeLayout>
+    </RelativeLayout>
+</LinearLayout>
