@@ -8,6 +8,7 @@ import android.view.View;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.bumptech.glide.Glide;
 import com.fire.camera.activity.CameraXActivity;
 import com.fire.camera.bean.CameraResultBean;
 import com.fire.camerax.databinding.ActivityMainBinding;
@@ -24,11 +25,14 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 new CameraXActivity.Builder()
                         .setOnCameraCallback(new CameraXActivity.OnCameraCallback() {
-                    @Override
-                    public void onCameraResult(CameraResultBean cameraResultBean) {
-                        Log.e("MainActivity", "onCameraResult: " + cameraResultBean.getPath());
-                    }
-                }).build(MainActivity.this);
+                            @Override
+                            public void onCameraResult(CameraResultBean cameraResultBean) {
+                                Log.e("MainActivity", "onCameraResult: " + cameraResultBean.getPath());
+                                if (cameraResultBean.getType() == CameraResultBean.CAMERA_RESULT_TYPE_PHOTO) {
+                                    Glide.with(MainActivity.this).load(cameraResultBean.getUri()).into(binding.imageView);
+                                }
+                            }
+                        }).build(MainActivity.this);
             }
         });
 

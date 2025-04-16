@@ -65,12 +65,12 @@ public class Tools {
 
     }
 
-    public static void moveFileToDCIM(Context context, String filePath, boolean isVideo) {
+    public static Uri moveFileToDCIM(Context context, String filePath, boolean isVideo) {
         File internalFile = new File(filePath);
 
         if (!internalFile.exists()) {
             Log.e("MoveFile", "源文件不存在");
-            return;
+            return null;
         }
         String fileName = filePath.substring(filePath.lastIndexOf("/") + 1);
         // 创建写入 MediaStore 的内容信息
@@ -91,6 +91,7 @@ public class Tools {
             uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
         }
         if (uri != null) {
+            Log.e("Tools", "moveFileToDCIM: " + uri);
             try (
                     OutputStream out = resolver.openOutputStream(uri);
                     InputStream in = new FileInputStream(internalFile)
@@ -112,6 +113,7 @@ public class Tools {
         } else {
             Log.e("MoveFile", "无法插入到 MediaStore");
         }
+        return uri;
     }
 
 

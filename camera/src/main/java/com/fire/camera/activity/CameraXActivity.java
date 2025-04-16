@@ -186,7 +186,7 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
                 e.printStackTrace();
             }
         }
-        defaultPath = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "DCIM" + File.separator + CAMERA_SAVE_FOLDER + File.separator;
+        defaultPath = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "DCIM" + File.separator + CAMERA_SAVE_FOLDER;
 //        cameraFolder = new File(defaultPath);
 //        if (!cameraFolder.exists()) {
 //            cameraFolder.mkdirs();
@@ -369,10 +369,11 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
             // 删除临时照片
             new File(tempPath).delete();
         } else if (id == R.id.tv_ok) {
-            Tools.moveFileToDCIM(this, tempPath, false);
+            Uri uri = Tools.moveFileToDCIM(this, tempPath, false);
 //            FileUtils.moveData(new File(tempPath), cameraFolder, false, true);
-            sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(new File(imagePath))));
+//            sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(new File(imagePath))));
             CameraResultBean cameraResultBean = new CameraResultBean();
+            cameraResultBean.setUri(uri);
             cameraResultBean.setPath(imagePath);
             cameraResultBean.setType(CameraResultBean.CAMERA_RESULT_TYPE_PHOTO);
             if (onCameraCallback != null) {
