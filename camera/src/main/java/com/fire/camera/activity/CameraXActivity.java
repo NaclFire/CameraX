@@ -2,13 +2,16 @@ package com.fire.camera.activity;
 
 import static com.fire.camera.CameraXSetting.CAMERA_ORIENTATION_HORIZONTAL;
 import static com.fire.camera.CameraXSetting.CAMERA_ORIENTATION_VERTICAL;
-import static com.fire.camera.CameraXSetting.CAMERA_SAVE_PATH;
+import static com.fire.camera.CameraXSetting.CAMERA_SAVE_FOLDER;
+import static com.fire.camera.CameraXSetting.CAMERA_VIDEO_MAX_TIME;
+import static com.fire.camera.CameraXSetting.CAMERA_VIDEO_MIN_TIME;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -67,7 +70,6 @@ import com.bumptech.glide.Glide;
 import com.fire.camera.R;
 import com.fire.camera.bean.CameraResultBean;
 import com.fire.camera.databinding.ActivityCameraXBinding;
-import com.fire.camera.utils.FileUtils;
 import com.fire.camera.utils.Tools;
 import com.fire.camera.utils.ViewOrientationHelper;
 import com.fire.camera.view.VideoPopupWindow;
@@ -84,6 +86,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 
 public class CameraXActivity extends AppCompatActivity implements View.OnClickListener {
@@ -93,7 +96,7 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
     private static final int REQUEST_CAMERA_AND_AUDIO_PERMISSION = 0x0001;
     private CameraSelector cameraSelector = new CameraSelector.Builder().requireLensFacing(CameraSelector.LENS_FACING_BACK).build();
     private final int[] flashModes = {ImageCapture.FLASH_MODE_OFF, ImageCapture.FLASH_MODE_AUTO, ImageCapture.FLASH_MODE_ON};
-    public final String CAMERA_X_DEFAULT_MEDIA_PATH = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "DCIM" + File.separator + "Pictures" + File.separator;
+    //    public final String CAMERA_X_DEFAULT_MEDIA_PATH = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "DCIM" + File.separator + "Pictures" + File.separator;
     private com.fire.camera.databinding.ActivityCameraXBinding binding;
     private final SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.CHINA);
 
@@ -103,15 +106,40 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
     private boolean isBackCamera = true;
     private boolean isTakePhoto;
     private String tempPath;
-    private File cameraFolder;
+    private String defaultPath;
+    //    private File cameraFolder;
     private File cameraCacheFolder;
     private String imagePath;
     private String videoPath;
-    private boolean isStartRecord;
+    private boolean isSaveTempRecord;
     private ViewOrientationHelper orientationHelper;
     private static OnCameraCallback onCameraCallback;
 
+
     public static class Builder {
+        /**
+         * 保存到DCIM下的文件夹名称，默认为应用名
+         */
+        public Builder setSaveFolder(String folderName) {
+            CAMERA_SAVE_FOLDER = folderName;
+            return this;
+        }
+
+        /**
+         * 最长录制时间，默认30，单位秒
+         */
+        public Builder setMaxTime(int maxTime) {
+            CAMERA_VIDEO_MAX_TIME = maxTime;
+            return this;
+        }
+
+        /**
+         * 最短录制时间，默认0（不限制最短时间），单位秒
+         */
+        public Builder setMinTime(int minTime) {
+            CAMERA_VIDEO_MIN_TIME = minTime;
+            return this;
+        }
 
         public Builder setOnCameraCallback(OnCameraCallback onCameraCallback) {
             CameraXActivity.onCameraCallback = onCameraCallback;
@@ -149,10 +177,20 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
         if (!cameraCacheFolder.exists()) {
             cameraCacheFolder.mkdirs();
         }
-        cameraFolder = new File(CAMERA_X_DEFAULT_MEDIA_PATH);
-        if (!cameraFolder.exists()) {
-            cameraFolder.mkdirs();
+        if (TextUtils.isEmpty(CAMERA_SAVE_FOLDER)) {
+            try {
+                ApplicationInfo ai = getPackageManager().getApplicationInfo(getPackageName(), 0);
+                CharSequence appName = getPackageManager().getApplicationLabel(ai);
+                CAMERA_SAVE_FOLDER = appName.toString();
+            } catch (PackageManager.NameNotFoundException e) {
+                e.printStackTrace();
+            }
         }
+        defaultPath = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "DCIM" + File.separator + CAMERA_SAVE_FOLDER + File.separator;
+//        cameraFolder = new File(defaultPath);
+//        if (!cameraFolder.exists()) {
+//            cameraFolder.mkdirs();
+//        }
         initView();
         initClickListener();
     }
@@ -257,11 +295,22 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
 
             @Override
             public void onNoMinRecord(int currentTime) {
-
+                Toast.makeText(CameraXActivity.this, "未达到最短录制时间", Toast.LENGTH_SHORT).show();
+                isSaveTempRecord = false;
+                try {
+                    if (currentRecording != null) {
+                        currentRecording.stop();
+                        currentRecording = null;
+                    }
+                    new File(tempPath).delete();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
 
             @Override
             public void onRecordFinishedListener() {
+                isSaveTempRecord = true;
                 try {
                     if (currentRecording != null) {
                         currentRecording.stop();
@@ -400,7 +449,7 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
         // 先将图片保存在内部，用户点击保存再移动到外部
         String fileName = "IMG_" + simpleDateFormat.format(new Date()) + ".jpg";
         tempPath = cameraCacheFolder.getAbsolutePath() + File.separator + fileName;
-        imagePath = cameraFolder.getAbsolutePath() + File.separator + fileName;
+        imagePath = defaultPath + File.separator + fileName;
         File imageFile = new File(tempPath);
         ImageCapture.OutputFileOptions imageOutputFileOptions = new ImageCapture.OutputFileOptions.Builder(imageFile).build();
         if (imageCapture != null) {
@@ -438,7 +487,7 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
         String fileName = "VID_" + simpleDateFormat.format(new Date()) + ".mp4";
         // 先将保存在内部，用户点击保存再移动到外部
         tempPath = cameraCacheFolder.getAbsolutePath() + File.separator + fileName;
-        videoPath = cameraFolder.getAbsolutePath() + File.separator + fileName;
+        videoPath = defaultPath + File.separator + fileName;
         FileOutputOptions outputOptions = new FileOutputOptions.Builder(new File(tempPath)).build();
         // 保存到默认位置
 //        ContentValues contentValues = new ContentValues();
@@ -454,17 +503,17 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
         if (videoCapture != null) {
             currentRecording = pendingRecording.start(ContextCompat.getMainExecutor(this), event -> {
                 if (event instanceof VideoRecordEvent.Start) {
-                    isStartRecord = true;
 //                    Toast.makeText(this, "开始录制", Toast.LENGTH_SHORT).show();
                 } else if (event instanceof VideoRecordEvent.Finalize) {
 //                    Toast.makeText(this, "录制完成", Toast.LENGTH_SHORT).show();
-                    isStartRecord = false;
-                    binding.previewView.postDelayed(new Runnable() {
-                        @Override
-                        public void run() {
-                            showVideoPreview();
-                        }
-                    }, 500);
+                    if (isSaveTempRecord) {
+                        binding.previewView.postDelayed(new Runnable() {
+                            @Override
+                            public void run() {
+                                showVideoPreview();
+                            }
+                        }, 500);
+                    }
                     currentRecording = null;
                 }
             });

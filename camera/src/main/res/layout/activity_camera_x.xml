@@ -87,8 +87,7 @@
                 android:layout_centerHorizontal="true"
                 android:layout_centerVertical="true"
                 android:layout_gravity="bottom|center"
-                app:maxTime="15"
-                app:progressWidth="4dp" />
+                app:progressWidth="8dp" />
 
             <ImageView
                 android:id="@+id/iv_camera_function_button"

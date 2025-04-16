@@ -22,7 +22,8 @@ public class MainActivity extends AppCompatActivity {
         binding.btStartCamera.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                new CameraXActivity.Builder().setOnCameraCallback(new CameraXActivity.OnCameraCallback() {
+                new CameraXActivity.Builder()
+                        .setOnCameraCallback(new CameraXActivity.OnCameraCallback() {
                     @Override
                     public void onCameraResult(CameraResultBean cameraResultBean) {
                         Log.e("MainActivity", "onCameraResult: " + cameraResultBean.getPath());

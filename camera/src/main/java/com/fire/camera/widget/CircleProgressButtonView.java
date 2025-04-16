@@ -15,6 +15,7 @@ import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
 
+import com.fire.camera.CameraXSetting;
 import com.fire.camera.R;
 
 public class CircleProgressButtonView extends View {
@@ -35,8 +36,8 @@ public class CircleProgressButtonView extends View {
     private float mCurrentProgress;//当前进度
 
     private final long mLongClickTime = 500;//长按最短时间(毫秒)，
-    private int mTime = 10;//录制最大时间s
-    private int mMinTime = 3;//录制最短时间
+    private int maxTime = 0;//录制最大时间s
+    private int minTime = -1;//录制最短时间
     private int mProgressColor;//进度条颜色
     private float mProgressW = 18f;//圆环宽度
 
@@ -61,15 +62,13 @@ public class CircleProgressButtonView extends View {
 
     private void init(Context context, AttributeSet attrs) {
         TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.CircleProgressButtonView);
-        mMinTime = a.getInt(R.styleable.CircleProgressButtonView_minTime, 0);
-        mTime = a.getInt(R.styleable.CircleProgressButtonView_maxTime, 10);
+//        minTime = a.getInt(R.styleable.CircleProgressButtonView_minTime, 0);
+//        mTime = a.getInt(R.styleable.CircleProgressButtonView_maxTime, 10);
         mProgressW = a.getDimension(R.styleable.CircleProgressButtonView_progressWidth, 12f);
         mProgressColor = a.getColor(R.styleable.CircleProgressButtonView_progressColor, Color.parseColor("#6ABF66"));
         a.recycle();
         initPaint();
-
         mProgressAni = ValueAnimator.ofFloat(0, 360f);
-        mProgressAni.setDuration(mTime * 1000);
     }
 
     private void initPaint() {
@@ -122,6 +121,9 @@ public class CircleProgressButtonView extends View {
             super.handleMessage(msg);
             switch (msg.what) {
                 case WHAT_LONG_CLICK:
+                    minTime = CameraXSetting.CAMERA_VIDEO_MIN_TIME;
+                    maxTime = CameraXSetting.CAMERA_VIDEO_MAX_TIME;
+                    mProgressAni.setDuration(maxTime * 1000);
                     //长按事件触发
                     if (onLongClickListener != null) {
                         onLongClickListener.onLongClick();
@@ -153,9 +155,9 @@ public class CircleProgressButtonView extends View {
                         onClickListener.onClick();
                 } else {
                     startAnimation(mBigRadius, mInitBitRadius, mSmallRadius, mInitSmallRadius);//手指离开时动画复原
-                    if (mProgressAni != null && mProgressAni.getCurrentPlayTime() / 1000 < mMinTime && !isMaxTime) {
+                    if (mProgressAni != null && mProgressAni.getCurrentPlayTime() / 1000 < minTime && !isMaxTime) {
                         if (onLongClickListener != null) {
-                            onLongClickListener.onNoMinRecord(mMinTime);
+                            onLongClickListener.onNoMinRecord(minTime);
                         }
                         mProgressAni.cancel();
                     } else {

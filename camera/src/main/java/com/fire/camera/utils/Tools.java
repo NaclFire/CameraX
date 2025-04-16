@@ -1,5 +1,7 @@
 package com.fire.camera.utils;
 
+import static com.fire.camera.CameraXSetting.CAMERA_SAVE_FOLDER;
+
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
@@ -74,9 +76,12 @@ public class Tools {
         // 创建写入 MediaStore 的内容信息
         ContentValues values = new ContentValues();
         values.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
-        values.put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg");
-        values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DCIM + "/Pictures");
-
+        if (isVideo) {
+            values.put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4");
+        } else {
+            values.put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg");
+        }
+        values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DCIM + File.separator + CAMERA_SAVE_FOLDER);
         ContentResolver resolver = context.getContentResolver();
 
         Uri uri;
