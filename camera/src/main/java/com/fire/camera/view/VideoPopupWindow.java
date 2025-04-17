@@ -1,22 +1,18 @@
 package com.fire.camera.view;
 
 import android.content.Context;
-import android.content.res.ColorStateList;
-import android.graphics.Color;
-import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.media.MediaPlayer;
 import android.os.Handler;
 import android.os.Message;
-import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.PopupWindow;
 import android.widget.SeekBar;
-
-import androidx.annotation.ColorInt;
 
 import com.fire.camera.R;
 import com.fire.camera.databinding.ItemVideoPreviewBinding;
@@ -42,8 +38,21 @@ public class VideoPopupWindow extends PopupWindow implements View.OnClickListene
         setWidth(WindowManager.LayoutParams.MATCH_PARENT);
         setHeight(WindowManager.LayoutParams.MATCH_PARENT);
         binding = ItemVideoPreviewBinding.inflate(LayoutInflater.from(context));
+        binding.getRoot().setOnKeyListener(new View.OnKeyListener() {
+            @Override
+            public boolean onKey(View v, int keyCode, KeyEvent event) {
+                if (keyCode == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_UP) {
+                    dismiss();// 关闭PopupWindow
+                    return true;// 表示事件已处理
+                }
+                return false;
+            }
+        });
         setContentView(binding.getRoot());
         setClippingEnabled(false);
+        setFocusable(true);
+        setOutsideTouchable(true);
+        setBackgroundDrawable(new ColorDrawable());
         mHandler = new mHandler(this);
         binding.ivVideoFunction.setOnClickListener(this::onClick);
         binding.llPreviewBack.setOnClickListener(this::onClick);
@@ -65,7 +74,6 @@ public class VideoPopupWindow extends PopupWindow implements View.OnClickListene
         }
     }
 
-
     public interface OnPreviewBackListener {
         void onBackClick();
     }
@@ -80,22 +88,6 @@ public class VideoPopupWindow extends PopupWindow implements View.OnClickListene
 
     public void setOnPreviewDoneListener(OnPreviewDoneListener onPreviewDoneListener) {
         this.onPreviewDoneListener = onPreviewDoneListener;
-    }
-
-    public void setBackImageColor(@ColorInt int color){
-        binding.ivBack.setImageTintList(ColorStateList.valueOf(color));
-    }
-
-    public void setBackTextColor(@ColorInt int color){
-        binding.tvBack.setTextColor(color);
-    }
-
-    public void setDoneTextColor(@ColorInt int color){
-        binding.tvPreviewDone.setTextColor(color);
-    }
-
-    public void setDoneText(String text){
-        binding.tvPreviewDone.setText(text);
     }
 
     @Override
@@ -162,15 +154,6 @@ public class VideoPopupWindow extends PopupWindow implements View.OnClickListene
                 }
             }
         }
-    }
-
-    public void setTopBackButtonGoneOrVisible(int visible) {
-        binding.llPreviewBack.setVisibility(visible);
-    }
-
-    public void setTopFinishButtonGoneOrVisible(int visible) {
-        binding.tvPreviewDone.setVisibility(visible);
-
     }
 
     public void setBackground(Drawable background) {
@@ -290,31 +273,11 @@ public class VideoPopupWindow extends PopupWindow implements View.OnClickListene
         }
     }
 
-    public static VideoPopupWindow videoPopupWindow;
-
-    /**
-     * 播放视频
-     */
-    public static void showVideoPreview(Context context, String videoPath
-            , View atLocationView, int x, int y) {
-        videoPopupWindow = new VideoPopupWindow(context, videoPath);
-        videoPopupWindow.setAnimationStyle(R.style.PopupAnimStyle);
-        videoPopupWindow.setBackgroundDrawable(new BitmapDrawable());
-        videoPopupWindow.showAtLocation(atLocationView, Gravity.CENTER, x, y);
-//        videoPopupWindow.setTopBackButtonGoneOrVisible(View.GONE);
-//        videoPopupWindow.setTopFinishButtonGoneOrVisible(View.GONE);
-        videoPopupWindow.setBackImageColor(Color.parseColor("#000000"));
-        videoPopupWindow.setBackTextColor(Color.parseColor("#000000"));
-        videoPopupWindow.setDoneTextColor(Color.parseColor("#000000"));
-        videoPopupWindow.setOnPreviewDoneListener(
-                (videoHeight, videoWidth) -> dismissVideoPreview());
-        videoPopupWindow.setBackground(context.getDrawable(R.color.white));
-    }
-
-    public static void dismissVideoPreview() {
-        if (null != videoPopupWindow && videoPopupWindow.isShowing()) {
-            videoPopupWindow.dismiss();
-            videoPopupWindow = null;
+    @Override
+    public void dismiss() {
+        super.dismiss();
+        if (mHandler != null) {
+            mHandler.removeCallbacksAndMessages(null);
         }
     }
 }

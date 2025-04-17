@@ -13,7 +13,10 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.graphics.Matrix;
 import android.graphics.drawable.BitmapDrawable;
 import android.net.Uri;
 import android.os.Bundle;
@@ -61,6 +64,7 @@ import androidx.camera.video.VideoCapture;
 import androidx.camera.video.VideoRecordEvent;
 import androidx.camera.view.PreviewView;
 import androidx.core.content.ContextCompat;
+import androidx.exifinterface.media.ExifInterface;
 import androidx.lifecycle.LiveData;
 
 import com.bumptech.glide.Glide;
@@ -77,6 +81,8 @@ import com.google.common.util.concurrent.ListenableFuture;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -370,16 +376,9 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
             isBackCamera = !isBackCamera;
             initCamera();
         } else if (id == R.id.tv_cancel) {
-            // 显示拍照界面
-            binding.llPhotoLayout.setVisibility(View.VISIBLE);
-            // 隐藏预览
-            binding.llConfirmLayout.setVisibility(View.GONE);
-            // 删除临时照片
-            new File(tempPath).delete();
+            cancelSavePhoto();
         } else if (id == R.id.tv_ok) {
             Uri uri = Tools.moveFileToDCIM(this, tempPath, false);
-//            FileUtils.moveData(new File(tempPath), cameraFolder, false, true);
-//            sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(new File(imagePath))));
             CameraResultBean cameraResultBean = new CameraResultBean();
             cameraResultBean.setUri(uri);
             cameraResultBean.setPath(imagePath);
@@ -453,7 +452,6 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
      * 注释：拍照并保存图片到相册
      */
     private void takePhoto() {
-        isTakePhoto = true;
         // 先将图片保存在内部，用户点击保存再移动到外部
         String fileName = "IMG_" + simpleDateFormat.format(new Date()) + ".jpg";
         tempPath = cameraCacheFolder.getAbsolutePath() + File.separator + fileName;
@@ -464,20 +462,8 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
             imageCapture.takePicture(imageOutputFileOptions, ContextCompat.getMainExecutor(this), new ImageCapture.OnImageSavedCallback() {
                 @Override
                 public void onImageSaved(@NonNull ImageCapture.OutputFileResults outputFileResults) {
-                    Log.e(TAG, "outputFileResults.getSavedUri() = " + outputFileResults.getSavedUri());
-//                    adjustImageFile(outputFileResults.getSavedUri());
-                    int orientation = CAMERA_ORIENTATION_VERTICAL;
-                    if (orientationHelper != null) {
-                        int rotationDegree = orientationHelper.getCurrentRotation();
-                        if (rotationDegree == 90 || rotationDegree == 270) {
-                            orientation = CAMERA_ORIENTATION_HORIZONTAL;
-                        }
-                    }
-                    if (orientation == CAMERA_ORIENTATION_HORIZONTAL) {
-                        binding.ivTakePhotoPreview.setScaleType(ImageView.ScaleType.FIT_CENTER);
-                    } else {
-                        binding.ivTakePhotoPreview.setScaleType(ImageView.ScaleType.FIT_START);
-                    }
+                    isTakePhoto = true;
+                    handleImage(outputFileResults.getSavedUri());
                     Glide.with(CameraXActivity.this).load(outputFileResults.getSavedUri()).into(binding.ivTakePhotoPreview);
                     // 隐藏拍照界面
                     binding.llPhotoLayout.setVisibility(View.INVISIBLE);
@@ -558,11 +544,10 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
         });
         videoPopupWindow.setOnPreviewDoneListener((videoHeight, videoWidth) -> {
             // 从内部移动到外部
-            Tools.moveFileToDCIM(this, tempPath, true);
-//            FileUtils.moveData(new File(tempPath), cameraFolder, false, true);
-            sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(new File(videoPath))));
+            Uri uri = Tools.moveFileToDCIM(this, tempPath, true);
             CameraResultBean cameraResultBean = new CameraResultBean();
             cameraResultBean.setPath(videoPath);
+            cameraResultBean.setUri(uri);
             cameraResultBean.setType(CameraResultBean.CAMERA_RESULT_TYPE_VIDEO);
             if (onCameraCallback != null) {
                 onCameraCallback.onCameraResult(cameraResultBean);
@@ -691,6 +676,84 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
         binding.previewView.playSoundEffect(SoundEffectConstants.CLICK);
     }
 
+    private void handleImage(Uri uri) {
+        int orientation = CAMERA_ORIENTATION_VERTICAL;
+        if (orientationHelper != null) {
+            int rotationDegree = orientationHelper.getCurrentRotation();
+            if (rotationDegree == 90 || rotationDegree == 270) {
+                orientation = CAMERA_ORIENTATION_HORIZONTAL;
+            }
+        }
+        if (orientation == CAMERA_ORIENTATION_HORIZONTAL) {
+            binding.ivTakePhotoPreview.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        } else {
+            binding.ivTakePhotoPreview.setScaleType(ImageView.ScaleType.FIT_START);
+        }
+        if (!isBackCamera) {
+            Bitmap bitmap = null;
+            try {
+                // 从文件读取 Bitmap
+                InputStream inputStream = getContentResolver().openInputStream(uri);
+                bitmap = BitmapFactory.decodeStream(inputStream);
+                inputStream.close();
+                // 获取 EXIF 角度
+                int rotation = getExifRotation(uri);
+                Log.e(TAG, "handleImage: rotation = " + rotation);
+                Matrix matrix = new Matrix();
+                matrix.setScale(-1, 1);// 左右镜像
+                matrix.postRotate(360 - rotation);// 旋转
+                bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+                // 保存回原路径
+                OutputStream outputStream = getContentResolver().openOutputStream(uri, "w");
+                if (outputStream != null) {
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
+                    outputStream.close();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                if (bitmap != null && !bitmap.isRecycled()) {
+                    bitmap.recycle();
+                }
+            }
+        }
+    }
+
+    public int getExifRotation(Uri imageUri) {
+        InputStream input = null;
+        try {
+            input = getContentResolver().openInputStream(imageUri);
+            if (input == null) return 0;
+            ExifInterface exif = new ExifInterface(input);
+            int orientation = exif.getAttributeInt(
+                    ExifInterface.TAG_ORIENTATION,
+                    ExifInterface.ORIENTATION_NORMAL
+            );
+
+            switch (orientation) {
+                case ExifInterface.ORIENTATION_ROTATE_90:
+                    return 90;
+                case ExifInterface.ORIENTATION_ROTATE_180:
+                    return 180;
+                case ExifInterface.ORIENTATION_ROTATE_270:
+                    return 270;
+                default:
+                    return 0;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return 0;
+        } finally {
+            if (input != null) {
+                try {
+                    input.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
     private void fadeInView(View view, long duration) {
         // 如果当前是可见的就不用动画
         if (view.getVisibility() == View.VISIBLE) return;
@@ -703,13 +766,34 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
                 .setListener(null); // 没有额外监听
     }
 
+    private void cancelSavePhoto() {
+        // 显示拍照界面
+        binding.llPhotoLayout.setVisibility(View.VISIBLE);
+        // 隐藏预览
+        binding.llConfirmLayout.setVisibility(View.GONE);
+        // 删除临时照片
+        new File(tempPath).delete();
+    }
+
     public interface OnCameraCallback {
         void onCameraResult(CameraResultBean cameraResultBean);
     }
 
     @Override
+    public void onBackPressed() {
+        if (isTakePhoto) {
+            cancelSavePhoto();
+        } else {
+            super.onBackPressed();
+        }
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (videoPopupWindow != null && videoPopupWindow.isShowing()) {
+            videoPopupWindow.dismiss();
+        }
         onCameraCallback = null;
     }
 }

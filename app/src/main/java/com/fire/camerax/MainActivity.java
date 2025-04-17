@@ -27,9 +27,17 @@ public class MainActivity extends AppCompatActivity {
                         .setOnCameraCallback(new CameraXActivity.OnCameraCallback() {
                             @Override
                             public void onCameraResult(CameraResultBean cameraResultBean) {
-                                Log.e("MainActivity", "onCameraResult: " + cameraResultBean.getPath());
+                                Log.e("MainActivity", "cameraResultBean.getPath(): " + cameraResultBean.getPath());
+                                Log.e("MainActivity", "cameraResultBean.getUri(): " + cameraResultBean.getUri());
                                 if (cameraResultBean.getType() == CameraResultBean.CAMERA_RESULT_TYPE_PHOTO) {
+                                    binding.imageView.setVisibility(View.VISIBLE);
+                                    binding.videoView.setVisibility(View.GONE);
                                     Glide.with(MainActivity.this).load(cameraResultBean.getUri()).into(binding.imageView);
+                                } else {
+                                    binding.imageView.setVisibility(View.GONE);
+                                    binding.videoView.setVisibility(View.VISIBLE);
+                                    binding.videoView.setVideoURI(cameraResultBean.getUri());
+                                    binding.videoView.start();
                                 }
                             }
                         }).build(MainActivity.this);
