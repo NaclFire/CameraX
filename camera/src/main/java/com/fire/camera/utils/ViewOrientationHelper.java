@@ -5,8 +5,8 @@ import android.content.Context;
 import android.view.OrientationEventListener;
 import android.view.Surface;
 import android.view.View;
-import android.view.WindowManager;
 import android.view.animation.RotateAnimation;
+
 import java.util.List;
 
 public class ViewOrientationHelper {
@@ -16,6 +16,7 @@ public class ViewOrientationHelper {
     private final OrientationEventListener orientationListener;
     private int lastRotation = 0;
     private int currentRotation = 0;
+    private OnOrientationChangedListener onOrientationChangedListener;
 
     public ViewOrientationHelper(Activity activity, List<View> targetViews) {
         this.context = activity;
@@ -33,6 +34,9 @@ public class ViewOrientationHelper {
                 if (targetAngle != lastRotation) {
                     rotateViews(targetAngle);  // 对所有 Views 进行旋转
                     lastRotation = targetAngle;
+                    if (onOrientationChangedListener != null) {
+                        onOrientationChangedListener.onOrientationChanged(targetAngle);
+                    }
                 }
             }
         };
@@ -50,7 +54,7 @@ public class ViewOrientationHelper {
         orientationListener.disable();
     }
 
-    public int getCurrentRotation(){
+    public int getCurrentRotation() {
         return currentRotation;
     }
 
@@ -103,6 +107,14 @@ public class ViewOrientationHelper {
         rotate.setDuration(300);
         rotate.setFillAfter(true); // 保持旋转后的角度
         view.startAnimation(rotate);
+    }
+
+    public void setOnOrientationChangedListener(OnOrientationChangedListener onOrientationChangedListener) {
+        this.onOrientationChangedListener = onOrientationChangedListener;
+    }
+
+    public interface OnOrientationChangedListener {
+        void onOrientationChanged(int targetAngle);
     }
 }
 

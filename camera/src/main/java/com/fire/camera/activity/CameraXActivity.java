@@ -13,10 +13,7 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Color;
-import android.graphics.Matrix;
 import android.graphics.drawable.BitmapDrawable;
 import android.net.Uri;
 import android.os.Bundle;
@@ -28,6 +25,7 @@ import android.view.GestureDetector;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.SoundEffectConstants;
+import android.view.Surface;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -62,7 +60,6 @@ import androidx.camera.video.Recording;
 import androidx.camera.video.VideoCapture;
 import androidx.camera.video.VideoRecordEvent;
 import androidx.camera.view.PreviewView;
-import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.LiveData;
 
@@ -70,6 +67,7 @@ import com.bumptech.glide.Glide;
 import com.fire.camera.R;
 import com.fire.camera.bean.CameraResultBean;
 import com.fire.camera.databinding.ActivityCameraXBinding;
+import com.fire.camera.utils.PermissionHelper;
 import com.fire.camera.utils.Tools;
 import com.fire.camera.utils.ViewOrientationHelper;
 import com.fire.camera.view.VideoPopupWindow;
@@ -79,14 +77,11 @@ import com.google.common.util.concurrent.ListenableFuture;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
-import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 
 public class CameraXActivity extends AppCompatActivity implements View.OnClickListener {
@@ -114,6 +109,7 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
     private boolean isSaveTempRecord;
     private ViewOrientationHelper orientationHelper;
     private static OnCameraCallback onCameraCallback;
+    private Preview preview;
 
 
     public static class Builder {
@@ -164,14 +160,8 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
         window.setStatusBarColor(Color.TRANSPARENT);
         binding = ActivityCameraXBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
-        ArrayList<String> permissions = new ArrayList<>();
-        for (String cameraAndAudioPermission : cameraAndAudioPermissions) {
-            if (ContextCompat.checkSelfPermission(this, cameraAndAudioPermission) != PackageManager.PERMISSION_GRANTED) {
-                permissions.add(cameraAndAudioPermission);
-            }
-        }
-        if (!permissions.isEmpty()) {
-            ActivityCompat.requestPermissions(this, permissions.toArray(new String[0]), REQUEST_CAMERA_AND_AUDIO_PERMISSION);
+        if (!PermissionHelper.hasStoragePermissions(this)) {
+            PermissionHelper.requestStoragePermissions(this);
         }
         cameraCacheFolder = new File(getExternalFilesDir("Cache").getAbsolutePath() + "/Media/");
         if (!cameraCacheFolder.exists()) {
@@ -187,10 +177,6 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
             }
         }
         defaultPath = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "DCIM" + File.separator + CAMERA_SAVE_FOLDER;
-//        cameraFolder = new File(defaultPath);
-//        if (!cameraFolder.exists()) {
-//            cameraFolder.mkdirs();
-//        }
         initView();
         initClickListener();
     }
@@ -198,46 +184,43 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull @NotNull String[] permissions, @NonNull @NotNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        switch (requestCode) {
-            case REQUEST_CAMERA_AND_AUDIO_PERMISSION:
-                boolean isAllGrant = true;
-                for (String permission : permissions) {
-                    if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
-                        isAllGrant = false;
-                        Toast.makeText(this, "请允许相机所需权限", Toast.LENGTH_SHORT).show();
-                        break;
-                    }
+        if (requestCode == PermissionHelper.REQUEST_CODE_STORAGE) {
+            boolean granted = true;
+            for (int result : grantResults) {
+                if (result != PackageManager.PERMISSION_GRANTED) {
+                    granted = false;
+                    break;
                 }
-                if (isAllGrant) {
-                    initCamera();
-                } else {
-                    // 拒绝授权->开弹窗跳询问是否跳设置-权限管理界面
-                    AlertDialog.Builder builder = new AlertDialog.Builder(this)
-                            .setMessage("应用需要您的相机、麦克风、文件操作权限，请到设置-权限管理中授权。")
-                            .setPositiveButton("确定", new DialogInterface.OnClickListener() {
-                                @Override
-                                public void onClick(DialogInterface dialog, int which) {
-                                    Intent intent = new Intent();
-                                    intent.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                                    intent.addCategory(Intent.CATEGORY_DEFAULT);
-                                    intent.setData(Uri.parse("package:" + getPackageName()));
-                                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                                    intent.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY);
-                                    intent.addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
-                                    startActivity(intent);
-                                }
-                            }).setCancelable(false)
-                            .setNegativeButton("取消", new DialogInterface.OnClickListener() {
-                                @Override
-                                public void onClick(DialogInterface dialog, int which) {
-                                    Toast.makeText(CameraXActivity.this, "您没有允许权限，此功能不能正常使用", Toast.LENGTH_SHORT).show();
-                                }
-                            });
-                    builder.create().show();
-                }
-                break;
-            default:
-                break;
+            }
+
+            if (granted) {
+                // 权限已授予
+                initCamera();
+            } else {
+                // 拒绝授权，开弹窗跳询问是否跳设置-权限管理界面
+                AlertDialog.Builder builder = new AlertDialog.Builder(this)
+                        .setMessage("应用需要您的相机、麦克风、文件操作权限，请到设置-权限管理中授权。")
+                        .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                Intent intent = new Intent();
+                                intent.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                                intent.addCategory(Intent.CATEGORY_DEFAULT);
+                                intent.setData(Uri.parse("package:" + getPackageName()));
+                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                intent.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY);
+                                intent.addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
+                                startActivity(intent);
+                            }
+                        }).setCancelable(false)
+                        .setNegativeButton("取消", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                Toast.makeText(CameraXActivity.this, "您没有允许权限，此功能不能正常使用", Toast.LENGTH_SHORT).show();
+                            }
+                        });
+                builder.create().show();
+            }
         }
     }
 
@@ -261,13 +244,13 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
     private GestureDetector gestureDetector;
 
     private void initView() {
-        int height = Tools.getScreenWidth(this) * 16 / 9;
-        if (Tools.getScreenHeight(this) - height > Tools.dp2px(this, 120)) {
+        int imageHeight = Tools.getScreenSize(this).getWidth() * 16 / 9;
+        if (Tools.getScreenSize(this).getHeight() - imageHeight > Tools.dp2px(this, 100)) {
             ViewGroup.LayoutParams layoutParams = binding.rlBottomTakeButton.getLayoutParams();
-            layoutParams.height = Tools.getScreenHeight(this) - height;
+            layoutParams.height = Tools.getScreenSize(this).getHeight() - imageHeight;
             binding.rlBottomTakeButton.setLayoutParams(layoutParams);
             layoutParams = binding.llConfirmButtonLayout.getLayoutParams();
-            layoutParams.height = Tools.getScreenHeight(this) - height;
+            layoutParams.height = Tools.getScreenSize(this).getHeight() - imageHeight;
             binding.llConfirmButtonLayout.setLayoutParams(layoutParams);
         }
         binding.previewView.setScaleType(PreviewView.ScaleType.FIT_START);
@@ -278,7 +261,32 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
         List<View> views = new ArrayList<>();
         views.add(binding.ivCameraFunctionButton);
         views.add(binding.ivCameraFlashButton);
+        views.add(binding.btRecord);
         orientationHelper = new ViewOrientationHelper(this, views);
+        orientationHelper.setOnOrientationChangedListener(new ViewOrientationHelper.OnOrientationChangedListener() {
+            @Override
+            public void onOrientationChanged(int targetAngle) {
+                int rotation;
+                if (targetAngle == 0) {
+                    rotation = Surface.ROTATION_0;
+                } else if (targetAngle == 90) {
+                    rotation = Surface.ROTATION_90;
+                } else if (targetAngle == 180) {
+                    rotation = Surface.ROTATION_180;
+                } else {
+                    rotation = Surface.ROTATION_270;
+                }
+                if (videoCapture != null) {
+                    videoCapture.setTargetRotation(rotation);
+                }
+                if (imageCapture != null) {
+                    imageCapture.setTargetRotation(rotation);
+                }
+                if (preview != null) {
+                    preview.setTargetRotation(rotation);
+                }
+            }
+        });
     }
 
     private void initClickListener() {
@@ -403,8 +411,7 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
                                 new AspectRatioStrategy(AspectRatio.RATIO_16_9, AspectRatioStrategy.FALLBACK_RULE_AUTO)
                         )
                         .build();
-                Preview preview = builder
-                        .setResolutionSelector(previewResolutionSelector).build();
+                preview = builder.setResolutionSelector(previewResolutionSelector).build();
                 cameraProvider.unbindAll();
                 preview.setSurfaceProvider(binding.previewView.getSurfaceProvider());
                 Recorder recorder = new Recorder.Builder()
@@ -458,8 +465,15 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
                 @Override
                 public void onImageSaved(@NonNull ImageCapture.OutputFileResults outputFileResults) {
                     Log.e(TAG, "outputFileResults.getSavedUri() = " + outputFileResults.getSavedUri());
-                    int i = adjustImageFile(outputFileResults.getSavedUri());
-                    if (i == CAMERA_ORIENTATION_HORIZONTAL) {
+//                    adjustImageFile(outputFileResults.getSavedUri());
+                    int orientation = CAMERA_ORIENTATION_VERTICAL;
+                    if (orientationHelper != null) {
+                        int rotationDegree = orientationHelper.getCurrentRotation();
+                        if (rotationDegree == 90 || rotationDegree == 270) {
+                            orientation = CAMERA_ORIENTATION_HORIZONTAL;
+                        }
+                    }
+                    if (orientation == CAMERA_ORIENTATION_HORIZONTAL) {
                         binding.ivTakePhotoPreview.setScaleType(ImageView.ScaleType.FIT_CENTER);
                     } else {
                         binding.ivTakePhotoPreview.setScaleType(ImageView.ScaleType.FIT_START);
@@ -683,59 +697,10 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
 
         view.setAlpha(0f); // 从透明开始
         view.setVisibility(View.VISIBLE);
-
         view.animate()
                 .alpha(1f) // 变为不透明
                 .setDuration(duration)
                 .setListener(null); // 没有额外监听
-    }
-
-    private int adjustImageFile(Uri uri) {
-        Bitmap bitmap = null;
-        Bitmap mirroredBitmap = null;
-        int orientation = CAMERA_ORIENTATION_VERTICAL;
-        try {
-            // 从文件读取 Bitmap
-            InputStream inputStream = getContentResolver().openInputStream(uri);
-            bitmap = BitmapFactory.decodeStream(inputStream);
-            inputStream.close();
-            // 获取当前屏幕旋转角度
-            int rotationDegree = 0;
-            if (orientationHelper != null) {
-                rotationDegree = orientationHelper.getCurrentRotation();
-                Log.e(TAG, "mirrorImageFile: rotationDegree = " + rotationDegree);
-            }
-            Matrix matrix = new Matrix();
-            // 镜像处理
-            if (!isBackCamera) {
-                matrix.setScale(-1, 1); // 左右镜像
-                matrix.postTranslate(bitmap.getWidth(), 0);
-            }
-            // 根据旋转角度进行调整
-            matrix.postRotate(-rotationDegree);
-            mirroredBitmap = Bitmap.createBitmap(bitmap, 0, 0,
-                    bitmap.getWidth(), bitmap.getHeight(), matrix, true);
-
-            if (mirroredBitmap.getWidth() > mirroredBitmap.getHeight()) {
-                // 横屏（Landscape）
-                orientation = CAMERA_ORIENTATION_HORIZONTAL;
-            }
-            // 保存回原路径
-            OutputStream outputStream = getContentResolver().openOutputStream(uri, "w");
-            mirroredBitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
-            outputStream.close();
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            // 清理 Bitmap
-            if (bitmap != null && !bitmap.isRecycled()) {
-                bitmap.recycle();
-            }
-            if (mirroredBitmap != null && !mirroredBitmap.isRecycled()) {
-                mirroredBitmap.recycle();
-            }
-        }
-        return orientation;
     }
 
     public interface OnCameraCallback {

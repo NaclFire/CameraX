@@ -4,7 +4,7 @@ plugins {
 
 android {
     namespace 'com.fire.camera'
-    compileSdk 35
+    compileSdk 34
 
     defaultConfig {
         minSdk 23

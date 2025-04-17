@@ -2,20 +2,25 @@ package com.fire.camera.utils;
 
 import static com.fire.camera.CameraXSetting.CAMERA_SAVE_FOLDER;
 
+import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Matrix;
+import android.graphics.Rect;
 import android.hardware.Camera;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.Size;
+import android.view.Display;
 import android.view.View;
 import android.view.WindowManager;
+import android.view.WindowMetrics;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -26,32 +31,27 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 public class Tools {
-    /**
-     * 获得屏幕宽度
-     *
-     * @param context
-     * @return
-     */
-    public static int getScreenWidth(Context context) {
-        WindowManager wm = (WindowManager) context
-                .getSystemService(Context.WINDOW_SERVICE);
-        DisplayMetrics outMetrics = new DisplayMetrics();
-        wm.getDefaultDisplay().getMetrics(outMetrics);
-        return outMetrics.widthPixels;
-    }
+    public static Size getScreenSize(Context context) {
+        DisplayMetrics realMetrics = new DisplayMetrics();
+        WindowManager windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+        if (windowManager != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                // Android 11 (API 30) 及以上使用新的方式
+                WindowMetrics windowMetrics = windowManager.getCurrentWindowMetrics();
+                Rect bounds = windowMetrics.getBounds();
+                return new Size(bounds.width(), bounds.height());
 
-    /**
-     * 获得屏幕高度
-     *
-     * @param context
-     * @return
-     */
-    public static int getScreenHeight(Context context) {
-        WindowManager wm = (WindowManager) context
-                .getSystemService(Context.WINDOW_SERVICE);
-        DisplayMetrics outMetrics = new DisplayMetrics();
-        wm.getDefaultDisplay().getMetrics(outMetrics);
-        return outMetrics.heightPixels;
+            } else {
+                // Android 10 及以下
+                Display display = windowManager.getDefaultDisplay();
+                display.getRealMetrics(realMetrics);
+                return new Size(realMetrics.widthPixels, realMetrics.heightPixels);
+            }
+        } else {
+            DisplayMetrics dm = new DisplayMetrics();
+            ((Activity) context).getWindowManager().getDefaultDisplay().getMetrics(dm);
+            return new Size(dm.widthPixels, dm.heightPixels);
+        }
     }
 
     public static int dp2px(Context context, float dpValue) {
@@ -114,96 +114,5 @@ public class Tools {
             Log.e("MoveFile", "无法插入到 MediaStore");
         }
         return uri;
-    }
-
-
-    /**
-     * 找到Size数组中与目标比例接近，且分辨率最大的一项
-     *
-     * @param sizes       Size数组
-     * @param targetRatio 目标比例（宽/高）
-     * @return 匹配的最大Size
-     */
-    public static Size findBestMatchingSize(Size[] sizes, float targetRatio) {
-        if (sizes == null || sizes.length == 0) return null;
-
-        final float ASPECT_TOLERANCE = 0.05f; // 可接受的比例误差
-        Size bestSize = null;
-        int maxPixels = 0;
-
-        for (Size size : sizes) {
-            float ratio = (float) size.getWidth() / size.getHeight();
-            if (Math.abs(ratio - targetRatio) <= ASPECT_TOLERANCE) {
-                int pixels = size.getWidth() * size.getHeight();
-                if (pixels > maxPixels) {
-                    maxPixels = pixels;
-                    bestSize = size;
-                }
-            }
-        }
-
-        return bestSize;
-    }
-
-    public static Bitmap setTakePictureOrientation(int id, Bitmap bitmap) {
-        if (bitmap == null)
-            return null;
-        //如果返回的图片宽度小于高度，说明FrameWork层已经做过处理直接返回即可
-        if (bitmap.getWidth() < bitmap.getHeight()) {
-            return bitmap;
-        }
-        Camera.CameraInfo info = new Camera.CameraInfo();
-        Camera.getCameraInfo(id, info);
-        return rotatingImageView(id, info.orientation, bitmap);
-    }
-
-    private static Bitmap rotatingImageView(int id, int angle, Bitmap bitmap) {
-        //矩阵
-        Matrix matrix = new Matrix();
-        matrix.postRotate(angle);
-        //加入翻转 把相机拍照返回照片转正
-        if (id == 1) {
-            matrix.postScale(-1, 1);
-        }
-        // 创建新的图片
-        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
-    }
-
-    public static boolean saveBitmapWithCompress(Bitmap bitmap, String path, float compress) {
-        try {
-            File file = new File(path);
-            File parent = file.getParentFile();
-            if (!parent.exists()) {
-                parent.mkdirs();
-            }
-            FileOutputStream fos = new FileOutputStream(file);
-            boolean b = bitmap.compress(Bitmap.CompressFormat.JPEG, (int) (100 * compress), fos);
-            fos.flush();
-            fos.close();
-            return b;
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return false;
-    }
-
-    public static boolean saveBitmap(Bitmap bitmap, String path) {
-        try {
-            File file = new File(path);
-            File parent = file.getParentFile();
-            if (!parent.exists()) {
-                parent.mkdirs();
-            }
-            FileOutputStream fos = new FileOutputStream(file);
-            boolean b = bitmap.compress(Bitmap.CompressFormat.JPEG, 100, fos);
-            fos.flush();
-            fos.close();
-            return b;
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return false;
     }
 }
