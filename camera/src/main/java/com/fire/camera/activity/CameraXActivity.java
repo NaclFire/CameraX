@@ -1,5 +1,7 @@
 package com.fire.camera.activity;
 
+import static com.fire.camera.CameraXSetting.CAMERA_MODE_PHOTO;
+import static com.fire.camera.CameraXSetting.CAMERA_MODE_VIDEO;
 import static com.fire.camera.CameraXSetting.CAMERA_ORIENTATION_HORIZONTAL;
 import static com.fire.camera.CameraXSetting.CAMERA_ORIENTATION_VERTICAL;
 import static com.fire.camera.CameraXSetting.CAMERA_SAVE_FOLDER;
@@ -24,6 +26,7 @@ import android.os.Environment;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Log;
+import android.util.Size;
 import android.view.GestureDetector;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -50,19 +53,11 @@ import androidx.camera.core.FocusMeteringAction;
 import androidx.camera.core.ImageCapture;
 import androidx.camera.core.ImageCaptureException;
 import androidx.camera.core.Preview;
+import androidx.camera.core.VideoCapture;
 import androidx.camera.core.ZoomState;
-import androidx.camera.core.resolutionselector.AspectRatioStrategy;
-import androidx.camera.core.resolutionselector.ResolutionSelector;
 import androidx.camera.lifecycle.ProcessCameraProvider;
-import androidx.camera.video.FileOutputOptions;
-import androidx.camera.video.PendingRecording;
-import androidx.camera.video.Quality;
-import androidx.camera.video.QualitySelector;
-import androidx.camera.video.Recorder;
-import androidx.camera.video.Recording;
-import androidx.camera.video.VideoCapture;
-import androidx.camera.video.VideoRecordEvent;
 import androidx.camera.view.PreviewView;
+import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.exifinterface.media.ExifInterface;
 import androidx.lifecycle.LiveData;
@@ -71,7 +66,7 @@ import com.bumptech.glide.Glide;
 import com.fire.camera.R;
 import com.fire.camera.bean.CameraResultBean;
 import com.fire.camera.databinding.ActivityCameraXBinding;
-import com.fire.camera.utils.PermissionHelper;
+import com.fire.camera.utils.FileUtils;
 import com.fire.camera.utils.Tools;
 import com.fire.camera.utils.ViewOrientationHelper;
 import com.fire.camera.view.VideoPopupWindow;
@@ -116,6 +111,8 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
     private ViewOrientationHelper orientationHelper;
     private static OnCameraCallback onCameraCallback;
     private Preview preview;
+    private ProcessCameraProvider cameraProvider;
+    private int currentCameraMode = CAMERA_MODE_PHOTO;
 
 
     public static class Builder {
@@ -166,8 +163,16 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
         window.setStatusBarColor(Color.TRANSPARENT);
         binding = ActivityCameraXBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
-        if (!PermissionHelper.hasStoragePermissions(this)) {
-            PermissionHelper.requestStoragePermissions(this);
+        ArrayList<String> permissions = new ArrayList<>();
+        for (String cameraAndAudioPermission : cameraAndAudioPermissions) {
+            if (ContextCompat.checkSelfPermission(this, cameraAndAudioPermission) != PackageManager.PERMISSION_GRANTED) {
+                permissions.add(cameraAndAudioPermission);
+            }
+        }
+        if (permissions.isEmpty()) {
+            initCamera();
+        } else {
+            ActivityCompat.requestPermissions(this, permissions.toArray(new String[0]), REQUEST_CAMERA_AND_AUDIO_PERMISSION);
         }
         cameraCacheFolder = new File(getExternalFilesDir("Cache").getAbsolutePath() + "/Media/");
         if (!cameraCacheFolder.exists()) {
@@ -183,6 +188,10 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
             }
         }
         defaultPath = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "DCIM" + File.separator + CAMERA_SAVE_FOLDER;
+        File cameraFolder = new File(defaultPath);
+        if (!cameraFolder.exists()) {
+            cameraFolder.mkdirs();
+        }
         initView();
         initClickListener();
     }
@@ -190,44 +199,48 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull @NotNull String[] permissions, @NonNull @NotNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == PermissionHelper.REQUEST_CODE_STORAGE) {
-            boolean granted = true;
-            for (int result : grantResults) {
-                if (result != PackageManager.PERMISSION_GRANTED) {
-                    granted = false;
-                    break;
+        switch (requestCode) {
+            case REQUEST_CAMERA_AND_AUDIO_PERMISSION:
+                boolean isAllGrant = true;
+                for (String permission : permissions) {
+                    if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                        isAllGrant = false;
+                        Toast.makeText(CameraXActivity.this, "请允许相机所需权限", Toast.LENGTH_SHORT).show();
+                        break;
+                    }
                 }
-            }
-
-            if (granted) {
-                // 权限已授予
-                initCamera();
-            } else {
-                // 拒绝授权，开弹窗跳询问是否跳设置-权限管理界面
-                AlertDialog.Builder builder = new AlertDialog.Builder(this)
-                        .setMessage("应用需要您的相机、麦克风、文件操作权限，请到设置-权限管理中授权。")
-                        .setPositiveButton("确定", new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialog, int which) {
-                                Intent intent = new Intent();
-                                intent.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                                intent.addCategory(Intent.CATEGORY_DEFAULT);
-                                intent.setData(Uri.parse("package:" + getPackageName()));
-                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                                intent.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY);
-                                intent.addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
-                                startActivity(intent);
-                            }
-                        }).setCancelable(false)
-                        .setNegativeButton("取消", new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialog, int which) {
-                                Toast.makeText(CameraXActivity.this, "您没有允许权限，此功能不能正常使用", Toast.LENGTH_SHORT).show();
-                            }
-                        });
-                builder.create().show();
-            }
+                if (isAllGrant) {// 同意授权->做事情
+                    initCamera();
+                } else {
+                    // 拒绝授权->开弹窗跳询问是否跳设置-权限管理界面
+                    AlertDialog.Builder builder = new AlertDialog.Builder(this)
+                            .setMessage("应用需要您的相机、麦克风、文件操作权限，请到设置-权限管理中授权。")
+                            .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {
+                                    Intent intent = new Intent();
+                                    intent.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                                    intent.addCategory(Intent.CATEGORY_DEFAULT);
+                                    intent.setData(Uri.parse("package:" + getPackageName()));
+                                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                    intent.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY);
+                                    intent.addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
+                                    startActivity(intent);
+                                }
+                            }).setCancelable(false)
+                            .setNegativeButton("取消", new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {
+                                    Toast.makeText(CameraXActivity.this, "您没有允许权限，此功能不能正常使用", Toast.LENGTH_SHORT).show();
+                                }
+                            });
+                    builder.create().show();
+                }
+                break;
+            default:
+                break;
         }
+
     }
 
     @Override
@@ -236,7 +249,6 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
         if (orientationHelper != null) {
             orientationHelper.start();
         }
-        initCamera();
     }
 
     @Override
@@ -251,15 +263,18 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
 
     private void initView() {
         int imageHeight = Tools.getScreenSize(this).getWidth() * 16 / 9;
+        ViewGroup.LayoutParams layoutParams = binding.previewView.getLayoutParams();
+        layoutParams.height = imageHeight;
+        binding.previewView.setLayoutParams(layoutParams);
         if (Tools.getScreenSize(this).getHeight() - imageHeight > Tools.dp2px(this, 100)) {
-            ViewGroup.LayoutParams layoutParams = binding.rlBottomTakeButton.getLayoutParams();
+            layoutParams = binding.rlBottomTakeButton.getLayoutParams();
             layoutParams.height = Tools.getScreenSize(this).getHeight() - imageHeight;
             binding.rlBottomTakeButton.setLayoutParams(layoutParams);
             layoutParams = binding.llConfirmButtonLayout.getLayoutParams();
             layoutParams.height = Tools.getScreenSize(this).getHeight() - imageHeight;
             binding.llConfirmButtonLayout.setLayoutParams(layoutParams);
         }
-        binding.previewView.setScaleType(PreviewView.ScaleType.FIT_START);
+        binding.previewView.setScaleType(PreviewView.ScaleType.FILL_CENTER);
         binding.previewView.setImplementationMode(PreviewView.ImplementationMode.PERFORMANCE);
         gestureDetector = new GestureDetector(this, onGestureListener);
         gestureDetector.setOnDoubleTapListener(onDoubleTapListener);
@@ -312,9 +327,8 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
                 Toast.makeText(CameraXActivity.this, "未达到最短录制时间", Toast.LENGTH_SHORT).show();
                 isSaveTempRecord = false;
                 try {
-                    if (currentRecording != null) {
-                        currentRecording.stop();
-                        currentRecording = null;
+                    if (videoCapture != null) {
+                        videoCapture.stopRecording();
                     }
                     new File(tempPath).delete();
                 } catch (Exception e) {
@@ -326,9 +340,8 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
             public void onRecordFinishedListener() {
                 isSaveTempRecord = true;
                 try {
-                    if (currentRecording != null) {
-                        currentRecording.stop();
-                        currentRecording = null;
+                    if (videoCapture != null) {
+                        videoCapture.stopRecording();
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -378,9 +391,10 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
         } else if (id == R.id.tv_cancel) {
             cancelSavePhoto();
         } else if (id == R.id.tv_ok) {
-            Uri uri = Tools.moveFileToDCIM(this, tempPath, false);
+            FileUtils.moveData(new File(tempPath), new File(defaultPath), false, true);
+//            Uri uri = Tools.moveFileToDCIM(this, tempPath, false);
             CameraResultBean cameraResultBean = new CameraResultBean();
-            cameraResultBean.setUri(uri);
+//            cameraResultBean.setUri(uri);
             cameraResultBean.setPath(imagePath);
             cameraResultBean.setType(CameraResultBean.CAMERA_RESULT_TYPE_PHOTO);
             if (onCameraCallback != null) {
@@ -390,7 +404,7 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
         }
     }
 
-    private VideoCapture<Recorder> videoCapture;
+    private VideoCapture videoCapture;
     private ImageCapture imageCapture;
     private Camera camera;
     private CameraInfo cameraInfo;
@@ -400,52 +414,51 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
     private float minZoomRatio;
 
     private void initCamera() {
-        ListenableFuture<ProcessCameraProvider> instance = ProcessCameraProvider.getInstance(this);
-        instance.addListener(() -> {
-            try {
-                ProcessCameraProvider cameraProvider = instance.get();
-                Preview.Builder builder = new Preview.Builder();
-                ResolutionSelector previewResolutionSelector = new ResolutionSelector.Builder()
-                        .setAspectRatioStrategy(
-                                new AspectRatioStrategy(AspectRatio.RATIO_16_9, AspectRatioStrategy.FALLBACK_RULE_AUTO)
-                        )
-                        .build();
-                preview = builder.setResolutionSelector(previewResolutionSelector).build();
-                cameraProvider.unbindAll();
-                preview.setSurfaceProvider(binding.previewView.getSurfaceProvider());
-                Recorder recorder = new Recorder.Builder()
-                        .setQualitySelector(QualitySelector.from(Quality.HIGHEST))
-                        .setAspectRatio(AspectRatio.RATIO_16_9)
-                        .build();
-                videoCapture = VideoCapture.withOutput(recorder);
-                ResolutionSelector resolutionSelector = new ResolutionSelector.Builder()
-                        .setAspectRatioStrategy(
-                                new AspectRatioStrategy(AspectRatio.RATIO_16_9, AspectRatioStrategy.FALLBACK_RULE_AUTO)
-                        )
-                        .build();
-                imageCapture = new ImageCapture.Builder()
-                        .setResolutionSelector(resolutionSelector)
-                        .build();
-                camera = cameraProvider.bindToLifecycle(CameraXActivity.this, cameraSelector, preview, videoCapture, imageCapture);
-                cameraInfo = camera.getCameraInfo();
-                cameraControl = camera.getCameraControl();
-                zoomState = cameraInfo.getZoomState();
-                maxZoomRatio = zoomState.getValue().getMaxZoomRatio();
-                minZoomRatio = zoomState.getValue().getMinZoomRatio();
-                preview.setSurfaceProvider(binding.previewView.getSurfaceProvider());
-                binding.previewView.setOnTouchListener(new View.OnTouchListener() {
-                    @Override
-                    public boolean onTouch(View v, MotionEvent event) {
-                        return gestureDetector.onTouchEvent(event);
-                    }
-                });
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                e.printStackTrace();
-            } catch (ExecutionException e) {
-                e.printStackTrace();
-            }
-        }, ContextCompat.getMainExecutor(this));
+        if (cameraProvider == null) {
+            ListenableFuture<ProcessCameraProvider> instance = ProcessCameraProvider.getInstance(this);
+            instance.addListener(() -> {
+                try {
+                    cameraProvider = instance.get();
+                    bindCamera();
+                    cameraInfo = camera.getCameraInfo();
+                    cameraControl = camera.getCameraControl();
+                    zoomState = cameraInfo.getZoomState();
+                    maxZoomRatio = zoomState.getValue().getMaxZoomRatio();
+                    minZoomRatio = zoomState.getValue().getMinZoomRatio();
+                    binding.previewView.setOnTouchListener(new View.OnTouchListener() {
+                        @Override
+                        public boolean onTouch(View v, MotionEvent event) {
+                            return gestureDetector.onTouchEvent(event);
+                        }
+                    });
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    e.printStackTrace();
+                } catch (ExecutionException e) {
+                    e.printStackTrace();
+                }
+            }, ContextCompat.getMainExecutor(this));
+        } else {
+            bindCamera();
+        }
+    }
+
+    private void bindCamera() {
+        cameraProvider.unbindAll();
+        preview = new Preview.Builder().build();
+        preview.setSurfaceProvider(binding.previewView.getSurfaceProvider());
+        if (videoCapture == null) {
+            videoCapture = new VideoCapture.Builder()
+                    .setTargetAspectRatio(AspectRatio.RATIO_16_9)
+                    .build();
+        }
+        camera = cameraProvider.bindToLifecycle(CameraXActivity.this, cameraSelector, preview, videoCapture);
+        if (imageCapture == null) {
+            imageCapture = new ImageCapture.Builder()
+                    .setTargetAspectRatio(AspectRatio.RATIO_16_9)
+                    .build();
+            camera = cameraProvider.bindToLifecycle(CameraXActivity.this, cameraSelector, preview, imageCapture, videoCapture);
+        }
     }
 
     /**
@@ -481,41 +494,31 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
         }
     }
 
-    private Recording currentRecording;
-
     @SuppressLint("MissingPermission")
     private void startRecord() {
         String fileName = "VID_" + simpleDateFormat.format(new Date()) + ".mp4";
         // 先将保存在内部，用户点击保存再移动到外部
         tempPath = cameraCacheFolder.getAbsolutePath() + File.separator + fileName;
         videoPath = defaultPath + File.separator + fileName;
-        FileOutputOptions outputOptions = new FileOutputOptions.Builder(new File(tempPath)).build();
-        // 保存到默认位置
-//        ContentValues contentValues = new ContentValues();
-//        contentValues.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
-//        contentValues.put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4");
-//        MediaStoreOutputOptions outputOptions = new MediaStoreOutputOptions.Builder(
-//                getContentResolver(),
-//                MediaStore.Video.Media.EXTERNAL_CONTENT_URI
-//        ).setContentValues(contentValues).build();
-        PendingRecording pendingRecording = videoCapture.getOutput()
-                .prepareRecording(this, outputOptions)
-                .withAudioEnabled();
         if (videoCapture != null) {
-            currentRecording = pendingRecording.start(ContextCompat.getMainExecutor(this), event -> {
-                if (event instanceof VideoRecordEvent.Start) {
-//                    Toast.makeText(this, "开始录制", Toast.LENGTH_SHORT).show();
-                } else if (event instanceof VideoRecordEvent.Finalize) {
-//                    Toast.makeText(this, "录制完成", Toast.LENGTH_SHORT).show();
-                    if (isSaveTempRecord) {
-                        binding.previewView.postDelayed(new Runnable() {
-                            @Override
-                            public void run() {
-                                showVideoPreview();
-                            }
-                        }, 500);
-                    }
-                    currentRecording = null;
+            VideoCapture.Metadata metadata = new VideoCapture.Metadata();
+            VideoCapture.OutputFileOptions videoOutputFileOptions = new VideoCapture.OutputFileOptions.Builder(new File(videoPath)).setMetadata(metadata).build();
+            videoCapture.startRecording(videoOutputFileOptions, ContextCompat.getMainExecutor(this), new VideoCapture.OnVideoSavedCallback() {
+                @Override
+                public void onVideoSaved(@NonNull @NotNull VideoCapture.OutputFileResults outputFileResults) {
+                    Log.e(TAG, "onVideoSaved: " + tempPath);
+                    binding.btRecord.postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            showVideoPreview();
+                        }
+                    }, 500);
+                }
+
+                @Override
+                public void onError(int videoCaptureError, @NonNull @NotNull String message, @Nullable @org.jetbrains.annotations.Nullable Throwable cause) {
+                    Log.e(TAG, "onError: " + message);
+                    Toast.makeText(CameraXActivity.this, "录像失败", Toast.LENGTH_SHORT).show();
                 }
             });
         }
@@ -544,10 +547,12 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
         });
         videoPopupWindow.setOnPreviewDoneListener((videoHeight, videoWidth) -> {
             // 从内部移动到外部
-            Uri uri = Tools.moveFileToDCIM(this, tempPath, true);
+//            Uri uri = Tools.moveFileToDCIM(this, tempPath, true);
+            FileUtils.moveData(new File(tempPath), new File(defaultPath), false, true);
+
             CameraResultBean cameraResultBean = new CameraResultBean();
             cameraResultBean.setPath(videoPath);
-            cameraResultBean.setUri(uri);
+//            cameraResultBean.setUri(uri);
             cameraResultBean.setType(CameraResultBean.CAMERA_RESULT_TYPE_VIDEO);
             if (onCameraCallback != null) {
                 onCameraCallback.onCameraResult(cameraResultBean);
@@ -767,6 +772,7 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
     }
 
     private void cancelSavePhoto() {
+        isTakePhoto = false;
         // 显示拍照界面
         binding.llPhotoLayout.setVisibility(View.VISIBLE);
         // 隐藏预览

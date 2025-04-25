@@ -1,8 +1,10 @@
 package com.fire.camera;
 
 public class CameraXSetting {
-    public static final int CAMERA_ORIENTATION_VERTICAL = 0;
-    public static final int CAMERA_ORIENTATION_HORIZONTAL = 1;
+    public static final int CAMERA_ORIENTATION_VERTICAL = 0x01;
+    public static final int CAMERA_ORIENTATION_HORIZONTAL = 0x02;
+    public static final int CAMERA_MODE_PHOTO = 0x11;
+    public static final int CAMERA_MODE_VIDEO = 0x12;
     /**
      * 保存到DCIM下的文件夹名称
      */
