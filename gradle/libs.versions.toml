@@ -14,6 +14,8 @@ camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "
 camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
 camera-video = { group = "androidx.camera", name = "camera-video", version.ref = "camerax" }
 glide = { group = "com.github.bumptech.glide", name = "glide", version.ref = "glide" }
+cameraX = { group = "com.github.NaclFire", name = "CameraX", version = "1.0.0" }
+
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
