@@ -92,12 +92,8 @@ import java.util.concurrent.ExecutionException;
 
 public class CameraXActivity extends AppCompatActivity implements View.OnClickListener {
     private static final String TAG = CameraXActivity.class.getSimpleName();
-    private final String[] cameraAndAudioPermissions = new String[]
-            {Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.RECORD_AUDIO};
-    private static final int REQUEST_CAMERA_AND_AUDIO_PERMISSION = 0x0001;
     private CameraSelector cameraSelector = new CameraSelector.Builder().requireLensFacing(CameraSelector.LENS_FACING_BACK).build();
     private final int[] flashModes = {ImageCapture.FLASH_MODE_OFF, ImageCapture.FLASH_MODE_AUTO, ImageCapture.FLASH_MODE_ON};
-    //    public final String CAMERA_X_DEFAULT_MEDIA_PATH = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "DCIM" + File.separator + "Pictures" + File.separator;
     private com.fire.camera.databinding.ActivityCameraXBinding binding;
     private final SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.CHINA);
 
@@ -108,7 +104,6 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
     private boolean isTakePhoto;
     private String tempPath;
     private String defaultPath;
-    //    private File cameraFolder;
     private File cameraCacheFolder;
     private String imagePath;
     private String videoPath;
@@ -166,9 +161,7 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
         window.setStatusBarColor(Color.TRANSPARENT);
         binding = ActivityCameraXBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
-        if (!PermissionHelper.hasStoragePermissions(this)) {
-            PermissionHelper.requestStoragePermissions(this);
-        }
+
         cameraCacheFolder = new File(getExternalFilesDir("Cache").getAbsolutePath() + "/Media/");
         if (!cameraCacheFolder.exists()) {
             cameraCacheFolder.mkdirs();
@@ -231,12 +224,21 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
     }
 
     @Override
+    protected void onStart() {
+        super.onStart();
+        if (PermissionHelper.hasStoragePermissions(this)) {
+            initCamera();
+        } else {
+            PermissionHelper.requestStoragePermissions(this);
+        }
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
         if (orientationHelper != null) {
             orientationHelper.start();
         }
-        initCamera();
     }
 
     @Override
@@ -767,6 +769,7 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
     }
 
     private void cancelSavePhoto() {
+        isTakePhoto = false;
         // 显示拍照界面
         binding.llPhotoLayout.setVisibility(View.VISIBLE);
         // 隐藏预览

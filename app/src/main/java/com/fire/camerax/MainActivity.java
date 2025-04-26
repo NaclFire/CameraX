@@ -1,8 +1,6 @@
 package com.fire.camerax;
 
-import android.content.Intent;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
 
 import androidx.annotation.Nullable;
@@ -15,6 +13,7 @@ import com.fire.camerax.databinding.ActivityMainBinding;
 
 
 public class MainActivity extends AppCompatActivity {
+
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -27,8 +26,6 @@ public class MainActivity extends AppCompatActivity {
                         .setOnCameraCallback(new CameraXActivity.OnCameraCallback() {
                             @Override
                             public void onCameraResult(CameraResultBean cameraResultBean) {
-                                Log.e("MainActivity", "cameraResultBean.getPath(): " + cameraResultBean.getPath());
-                                Log.e("MainActivity", "cameraResultBean.getUri(): " + cameraResultBean.getUri());
                                 if (cameraResultBean.getType() == CameraResultBean.CAMERA_RESULT_TYPE_PHOTO) {
                                     binding.imageView.setVisibility(View.VISIBLE);
                                     binding.videoView.setVisibility(View.GONE);

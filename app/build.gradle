@@ -32,5 +32,6 @@ android {
 dependencies {
     implementation libs.appcompat
     implementation libs.material
-    api project(':camera')
+    implementation libs.glide
+    implementation project(':camera')
 }
