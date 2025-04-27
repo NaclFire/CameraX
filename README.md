@@ -16,8 +16,7 @@
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        google()
-        mavenCentral()
+        ...
         maven { url 'https://jitpack.io' }
     }
 }
@@ -37,7 +36,7 @@ dependencies {
 new CameraXActivity.Builder()
         .setMaxTime(30)// 最长录制时间，默认30秒
         .setMinTime(2)// 最短录制时间，可选，默认0
-        .setSaveFolder("MyApp")// 保存文件夹名，位于DCIM目录下，。
+        .setSaveFolder("MyApp")// 保存文件夹名，位于DCIM目录下，默认为应用名。
         .setOnCameraCallback(new CameraXActivity.OnCameraCallback() {
     @Override
     public void onCameraResult(CameraResultBean cameraResultBean) {
