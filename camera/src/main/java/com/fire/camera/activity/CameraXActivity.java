@@ -35,6 +35,7 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.PopupWindow;
+import android.widget.RelativeLayout;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -261,6 +262,9 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
             layoutParams.height = Tools.getScreenSize(this).getHeight() - imageHeight;
             binding.llConfirmButtonLayout.setLayoutParams(layoutParams);
         }
+        RelativeLayout.LayoutParams layoutParams = (RelativeLayout.LayoutParams) binding.ivBack.getLayoutParams();
+        layoutParams.topMargin = Tools.getStatusBarHeight(this);
+        binding.ivBack.setLayoutParams(layoutParams);
         binding.previewView.setScaleType(PreviewView.ScaleType.FIT_START);
         binding.previewView.setImplementationMode(PreviewView.ImplementationMode.PERFORMANCE);
         gestureDetector = new GestureDetector(this, onGestureListener);
@@ -303,14 +307,17 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
         binding.tvCancel.setOnClickListener(this::onClick);
         binding.tvOk.setOnClickListener(this::onClick);
         binding.btRecord.setOnClickListener(this::takePhoto);
+        binding.ivBack.setOnClickListener(this::onClick);
         binding.btRecord.setOnLongClickListener(new CircleProgressButtonView.OnLongClickListener() {
             @Override
             public void onLongClick() {
+                binding.ivBack.setVisibility(View.GONE);
                 startRecord();
             }
 
             @Override
             public void onNoMinRecord(int currentTime) {
+                binding.ivBack.setVisibility(View.VISIBLE);
                 Toast.makeText(CameraXActivity.this, "未达到最短录制时间", Toast.LENGTH_SHORT).show();
                 isSaveTempRecord = false;
                 try {
@@ -326,6 +333,7 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
 
             @Override
             public void onRecordFinishedListener() {
+                binding.ivBack.setVisibility(View.VISIBLE);
                 isSaveTempRecord = true;
                 try {
                     if (currentRecording != null) {
@@ -388,6 +396,8 @@ public class CameraXActivity extends AppCompatActivity implements View.OnClickLi
             if (onCameraCallback != null) {
                 onCameraCallback.onCameraResult(cameraResultBean);
             }
+            finish();
+        } else if (id == R.id.iv_back) {
             finish();
         }
     }
