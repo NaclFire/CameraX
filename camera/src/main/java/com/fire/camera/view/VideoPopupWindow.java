@@ -29,12 +29,10 @@ public class VideoPopupWindow extends PopupWindow implements View.OnClickListene
     private OnPreviewBackListener onPreviewBackListener;
     private int videoHeight;
     private int videoWidth;
-    Context context;
 
 
     public VideoPopupWindow(Context context, String videoPath) {
         super(context);
-        this.context = context;
         setWidth(WindowManager.LayoutParams.MATCH_PARENT);
         setHeight(WindowManager.LayoutParams.MATCH_PARENT);
         binding = ItemVideoPreviewBinding.inflate(LayoutInflater.from(context));
@@ -94,13 +92,15 @@ public class VideoPopupWindow extends PopupWindow implements View.OnClickListene
     public void onClick(View v) {
         int id = v.getId();
         if (id == R.id.iv_video_function) {
+            mHandler.removeMessages(MSG_HIDE_CONTROL);
             if (binding.vvPreview.isPlaying()) {
                 binding.vvPreview.pause();
                 binding.ivVideoFunction.setImageResource(R.drawable.ic_camera_preview_play);
             } else {
                 binding.vvPreview.start();
                 binding.ivVideoFunction.setImageResource(R.drawable.ic_camera_preview_pause);
-                mHandler.sendEmptyMessageDelayed(MSG_HIDE_CONTROL, 1000);
+                mHandler.sendEmptyMessageDelayed(MSG_HIDE_CONTROL, 1500);
+                updatePlayProgress();
             }
         } else if (id == R.id.ll_preview_back) {
             if (onPreviewBackListener != null) {
@@ -124,7 +124,7 @@ public class VideoPopupWindow extends PopupWindow implements View.OnClickListene
             binding.ivVideoFunction.setVisibility(binding.ivVideoFunction.isShown() ? View.GONE : View.VISIBLE);
             if (binding.ivVideoFunction.isShown()) {
                 if (binding.vvPreview.isPlaying()) {
-                    mHandler.sendEmptyMessageDelayed(MSG_HIDE_CONTROL, 1000);
+                    mHandler.sendEmptyMessageDelayed(MSG_HIDE_CONTROL, 1500);
                 }
             } else {
                 mHandler.removeMessages(MSG_HIDE_CONTROL);
@@ -149,7 +149,9 @@ public class VideoPopupWindow extends PopupWindow implements View.OnClickListene
                         videoPopupWindow.binding.ivVideoFunction.setVisibility(View.GONE);
                         break;
                     case MSG_UPDATE_PLAY_PROGRESS:
-                        videoPopupWindow.updatePlayProgress();
+                        if (videoPopupWindow.binding.vvPreview.isPlaying()) {
+                            videoPopupWindow.updatePlayProgress();
+                        }
                         break;
                 }
             }
@@ -176,7 +178,7 @@ public class VideoPopupWindow extends PopupWindow implements View.OnClickListene
     public void updatePlayProgress() {
         binding.tvTimeCurrent.setText(formatVideoDuration(binding.vvPreview.getCurrentPosition()));
         binding.sbSeekBar.setProgress(binding.vvPreview.getCurrentPosition());
-        mHandler.sendEmptyMessageDelayed(MSG_UPDATE_PLAY_PROGRESS, 500);
+        mHandler.sendEmptyMessageDelayed(MSG_UPDATE_PLAY_PROGRESS, 50);
     }
 
     private void calculateView() {
@@ -250,7 +252,7 @@ public class VideoPopupWindow extends PopupWindow implements View.OnClickListene
      * @param duration
      * @return
      */
-    public static String formatVideoDuration(long duration) {
+    private String formatVideoDuration(long duration) {
         int HOUR = 60 * 60 * 1000;//1小时所占的毫秒数
         int MINUTE = 60 * 1000;//1分钟所占的毫秒数
         int SECOND = 1000;//1秒
