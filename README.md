@@ -26,7 +26,7 @@ dependencyResolutionManagement {
 
 ```groovy
 dependencies {
-    implementation 'com.github.NaclFire:CameraX:1.0.0'
+    implementation 'com.github.NaclFire:CameraX:1.0.1'
 }
 ```
 
@@ -34,9 +34,9 @@ dependencies {
 
 ```java
 new CameraXActivity.Builder()
-        .setMaxTime(30)// 最长录制时间，默认30秒
-        .setMinTime(2)// 最短录制时间，可选，默认0
-        .setSaveFolder("MyApp")// 保存文件夹名，位于DCIM目录下，默认为应用名。
+        .setMaxTime(30)// 可选，最长录制时间，默认30秒
+        .setMinTime(2)// 可选，最短录制时间，默认0
+        .setSaveFolder("MyApp")// 可选，保存文件夹名，位于DCIM目录下，默认为应用名。
         .setOnCameraCallback(new CameraXActivity.OnCameraCallback() {
     @Override
     public void onCameraResult(CameraResultBean cameraResultBean) {
